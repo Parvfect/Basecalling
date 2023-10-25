@@ -13,21 +13,5 @@ def print_all_raw_data(filepath):
     return data
 
 filepath = r"C:\Users\Parv\Doc\HelixWorks\Basecalling\data\tut.fast5"
-data = print_all_raw_data(filepath)
 
-
-data_seq = []
-for i in data:
-    for j in i:
-        data_seq.append(j)
-
-data_seq = np.array(data_seq)
-
-# convert to dataframe in 50 columns
-#df = pd.DataFrame(data_seq)
-
-n = 20
-  
-# using list comprehension 
-data_arr = [data_seq[i * n:(i + 1) * n] for i in range((len(data_seq) + n - 1) // n )]  
-print(data_arr)
+data_seq = np.load("data_seq.npy")
