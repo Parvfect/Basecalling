@@ -3,6 +3,32 @@ import numpy as np
 import ast
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+from itertools import combinations
+import random
+
+def choose_symbols(n_motifs, picks):
+    """Creates Symbol Array as a combination of Motifs
+    
+    Args: 
+        n_motifs (int): Total Number of Motifs
+        picks (int): Number of Motifs per Symbol
+    Returns: 
+        symbols (list): List of all the Symbols as motif combinations
+    """
+
+    # Reference Motif Address starts from 1 not 0
+    return [list(i) for i in (combinations(np.arange(1, n_motifs+1), picks))]
+
+def create_mask(rng, mask_length):
+    """ 
+    Creates the mask to convert from FF67 to FF70 by mod 70 addition to a psuedo random string
+    Takes in the rng seed so we can save our masks
+    ----
+    Codeword + Mask % 70 = Channel Input
+    """
+    return [rng.integers(0,70) for i in range(mask_length)]
+
 # Checking which motifs are most robust to basecalling error
 
 def read_payloads_from_file(filename):
@@ -12,8 +38,34 @@ def read_payloads_from_file(filename):
     payloads = df.drop(['ONT_Barcode', 'HW_Address'], axis=1)
     payloads_arr = payloads.to_numpy()
     payloads_arr = np.array([[ast.literal_eval(j) for j in i] for i in payloads_arr])
-    payloads_arr = payloads_arr.reshape(8*1280*4) # Flattening completely into a motif array
-    return payloads_arr
+    payloads_arr = payloads_arr.reshape(10240, 4)
+    payloads_arr = payloads_arr[:-16]
+
+    return payloads_arr.reshape(8,1278,4)
+   
+def unmask_payloads(payloads_arr):
+    """Flattens all the way """
+
+    rng = np.random.default_rng(seed=42)
+
+    symbols = choose_symbols(8, 4)
+    new_payload_arr = np.zeros([8,1278,4])
+    shape = payloads_arr.shape
+
+    for i in range(shape[0]):
+        mask = create_mask(rng, 1278)
+        for j in range(shape[1]):
+            if list(payloads_arr[i,j]) in symbols:
+                symbol_read = symbols.index(list(payloads_arr[i,j]))
+            else:
+                symbol_read = 0 # Mask will rearrange psuedo randomly
+            unmasked_symbol = (symbol_read - mask[j]) % 70
+            motifs_unmasked = symbols[unmasked_symbol]
+            #print(motifs_unmasked)
+            new_payload_arr[i,j] = motifs_unmasked
+
+    return new_payload_arr.reshape(10224*4)
+
 
 filenames = {
     'dc99.74':[r"C:\Users\Parv\Doc\HelixWorks\code\data\E1C01-01-1280\OAS\T1-DC-99.74\EIC01-01-1280-T1_encoded.tsv", r"C:\Users\Parv\Doc\HelixWorks\code\data\E1C01-01-1280\OAS\T1-DC-99.74\EIC01-01-1280-T1_decoded_consensus.tsv"],
@@ -39,13 +91,14 @@ total_motif_count = np.zeros(8)
 motifs_label = ['1', '2', '3', '4', '5', '6', '7', '8']
 
 for i in range(4):
-    wrong_motif_count = np.zeros(8)
-    for j in range(40960):
-        if not encoded_motifs[i,j] == decoded_motifs[i,j]:
-            original_motif = encoded_motifs[i,j] # This is after masking though, we are blind to the actual motifs, just showing whether differences exist
-            wrong_motif_count[original_motif-1] += 1
-            total_motif_count[original_motif-1] += 1
-    wrong_motif_counts.append(wrong_motif_count)
+    unmasked_encoded_motifs = unmask_payloads(encoded_motifs[i])
+    unmasked_decoded_motifs = unmask_payloads(decoded_motifs[i])
+
+    for i in range(10224*4):
+        if not unmasked_encoded_motifs[i] == unmasked_decoded_motifs[i]:
+            unmasked_encoded_motifs[i] = int(unmasked_encoded_motifs[i])
+            print(unmasked_encoded_motifs[i])
+            motifs_label[unmasked_encoded_motifs[i]] += 1
 
 mean_val = np.mean(total_motif_count)
 plt.bar(motifs_label, total_motif_count)
