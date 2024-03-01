@@ -64,7 +64,7 @@ def unmask_payloads(payloads_arr):
             #print(motifs_unmasked)
             new_payload_arr[i,j] = motifs_unmasked
 
-    return new_payload_arr.reshape(10224*4)
+    return new_payload_arr
 
 
 filenames = {
@@ -88,23 +88,50 @@ decoded_motifs = np.array(decoded_motifs)
 
 wrong_motif_counts = []
 total_motif_count = np.zeros(8)
+total_motif_counts = []
 motifs_label = ['1', '2', '3', '4', '5', '6', '7', '8']
 
 for i in range(4):
     unmasked_encoded_motifs = unmask_payloads(encoded_motifs[i])
     unmasked_decoded_motifs = unmask_payloads(decoded_motifs[i])
+    
+    #unmasked_encoded_motifs = encoded_motifs[i]
+    #unmasked_decoded_motifs = decoded_motifs[i]
 
-    for i in range(10224*4):
-        if not unmasked_encoded_motifs[i] == unmasked_decoded_motifs[i]:
-            unmasked_encoded_motifs[i] = int(unmasked_encoded_motifs[i])
-            print(unmasked_encoded_motifs[i])
-            motifs_label[unmasked_encoded_motifs[i]] += 1
+
+    unmasked_encoded_file = unmasked_encoded_motifs.reshape(8*1278*4)
+    unmasked_decoded_file = unmasked_decoded_motifs.reshape(8*1278*4)
+
+    tmfs = np.zeros(8)
+    for i in range(8*1278*4):
+        if not unmasked_encoded_file[i] == unmasked_decoded_file[i]:
+            motif = int(unmasked_encoded_file[i])
+            #print(motif)
+            total_motif_count[motif - 1] +=1 # Since labelled 1-8 in HC
+            tmfs[motif - 1] += 1
+    
+    total_motif_counts.append(tmfs)
+
 
 mean_val = np.mean(total_motif_count)
 plt.bar(motifs_label, total_motif_count)
 plt.xlabel("Motifs")
 plt.ylabel("Errors Per Motif in Sequencing Pipeline")
 plt.axhline(mean_val)
-plt.title("Imbalance of Motif Reconstruction in Sequencing Pipeline - on average")
+plt.title("Imbalance of Motif Reconstruction in Sequencing Pipeline - cumulative")
 plt.show()
     
+
+consensus = ["99.74", "60.51", "33.45", "11.45"]
+counter = 0 
+for i in total_motif_counts:
+    mean_val = np.mean(i)
+    plt.bar(motifs_label, i)
+    plt.xlabel("Motifs")
+    plt.ylabel("Errors Per Motif in Sequencing Pipeline")
+    plt.axhline(mean_val)
+    plt.title(f"Imbalance of Motif Reconstruction in Sequencing for Decoding consensus {consensus[counter]}")
+    plt.show()
+
+    counter += 1
+# Included missing values - wonder what happens when you throw the missing values away
